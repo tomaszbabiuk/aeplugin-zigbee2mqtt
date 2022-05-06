@@ -38,7 +38,7 @@ After running this task, the plugin is installed in 'automate-everything/output/
 cd output
 java -jar output/bin/ae-backend-all.jar
 ```
-After running the server, go to http://localhost/plugins/hardware and enable "Zigbee2mqtt" plugin
+After running the server, go to http://localhost/plugins/hardware and enable "Zigbee2Mqtt" plugin
 
 # Debugging
 Run in IntelliJ Idea. Debug as "JAR application". 
