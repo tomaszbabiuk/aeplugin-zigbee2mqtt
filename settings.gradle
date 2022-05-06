@@ -1,0 +1,3 @@
+rootProject.name = 'aeplugin-zigbee2mqtt'
+
+includeBuild "../automate-everything"
