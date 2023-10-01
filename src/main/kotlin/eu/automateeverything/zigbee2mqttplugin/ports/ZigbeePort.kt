@@ -16,18 +16,44 @@
 package eu.automateeverything.zigbee2mqttplugin.ports
 
 import eu.automateeverything.data.hardware.PortValue
-import eu.automateeverything.domain.hardware.InputPort
+import eu.automateeverything.domain.events.EventBus
 import eu.automateeverything.domain.hardware.Port
+import eu.automateeverything.domain.hardware.PortCapabilities
 import eu.automateeverything.zigbee2mqttplugin.data.UpdatePayload
 
-abstract class ZigbeePort<V: PortValue>(
-    override val id : String,
-    override val valueClazz: Class<V>,
+abstract class ZigbeePort<V : PortValue>(
+    factoryId: String,
+    adapterId: String,
+    portId: String,
+    eventBus: EventBus,
+    valueClazz: Class<V>,
+    capabilities: PortCapabilities,
+    sleepInterval: Long,
+    lastSeenTimestamp: Long,
     val readTopic: String,
-    final override val sleepInterval: Long,
-    override var lastSeenTimestamp: Long
-) : InputPort<V> {
+    initialValue: V,
+) : Port<V>(factoryId, adapterId, portId, eventBus, valueClazz, capabilities, sleepInterval) {
+
+    init {
+        updateLastSeenTimeStamp(lastSeenTimestamp)
+    }
+
     var isValueVerified = false
 
-    abstract fun tryUpdate(payload: UpdatePayload) : Boolean
+    var value = initialValue
+
+    override fun readInternal(): V {
+        return value
+    }
+
+    fun tryUpdate(payload: UpdatePayload): Boolean {
+        val updated = tryUpdateInternal(payload)
+        if (updated) {
+            isValueVerified = tryUpdateInternal(payload)
+        }
+
+        return updated
+    }
+
+    abstract fun tryUpdateInternal(payload: UpdatePayload): Boolean
 }

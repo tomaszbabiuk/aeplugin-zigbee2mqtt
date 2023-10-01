@@ -25,9 +25,9 @@ import eu.automateeverything.domain.mqtt.MqttBrokerService
 import eu.automateeverything.domain.mqtt.MqttListener
 import eu.automateeverything.zigbee2mqttplugin.data.*
 import eu.automateeverything.zigbee2mqttplugin.ports.*
-import kotlinx.coroutines.*
 import java.net.InetAddress
 import java.util.*
+import kotlinx.coroutines.*
 
 class Zigbee2MqttAdapter(
     owningPluginId: String,
@@ -43,10 +43,8 @@ class Zigbee2MqttAdapter(
     init {
         repository
             .getAllPorts()
-            .filter { it.factoryId == owningPluginId && it.adapterId == id }
-            .forEach {
-                ports[it.id] = convertPortDtoToZigbeePort(it)
-            }
+            .filter { it.factoryId == owningPluginId && it.adapterId == adapterId }
+            .forEach { ports[it.id] = convertPortDtoToZigbeePort(it) }
     }
 
     private fun convertPortDtoToZigbeePort(portDto: PortDto): ZigbeePort<*> {
@@ -57,16 +55,50 @@ class Zigbee2MqttAdapter(
 
         return when (portDto.valueClazz) {
             BatteryCharge::class.java.name -> {
-                ZigbeeBatteryInputPort(portDto.id, readTopic, portDto.sleepInterval, portDto.lastSeenTimestamp)
+                ZigbeeBatteryInputPort(
+                    owningPluginId,
+                    adapterId,
+                    portDto.id,
+                    eventBus,
+                    portDto.sleepInterval,
+                    portDto.lastSeenTimestamp,
+                    readTopic
+                )
             }
             TimeStamp::class.java.name -> {
-                ZigbeeActionInputPort(portDto.id, readTopic, suffix, portDto.sleepInterval, portDto.lastSeenTimestamp)
+                ZigbeeActionInputPort(
+                    owningPluginId,
+                    adapterId,
+                    portDto.id,
+                    eventBus,
+                    portDto.sleepInterval,
+                    portDto.lastSeenTimestamp,
+                    readTopic,
+                    suffix
+                )
             }
             Humidity::class.java.name -> {
-                ZigbeeHumidityInputPort(portDto.id, readTopic, portDto.sleepInterval, portDto.lastSeenTimestamp)
+                ZigbeeHumidityInputPort(
+                    owningPluginId,
+                    adapterId,
+                    portDto.id,
+                    eventBus,
+                    portDto.sleepInterval,
+                    portDto.lastSeenTimestamp,
+                    readTopic
+                )
             }
             Temperature::class.java.name -> {
-                ZigbeeTemperatureInputPort(portDto.id, readTopic, "c", portDto.sleepInterval, portDto.lastSeenTimestamp)
+                ZigbeeTemperatureInputPort(
+                    owningPluginId,
+                    adapterId,
+                    portDto.id,
+                    eventBus,
+                    portDto.sleepInterval,
+                    portDto.lastSeenTimestamp,
+                    readTopic,
+                    "c"
+                )
             }
             else -> {
                 throw Exception("Cannot recreate port from its snapshot!")
@@ -88,10 +120,14 @@ class Zigbee2MqttAdapter(
 
                 mqttBroker.publish("zigbee2mqtt/bridge/request/permit_join", "false")
             } else {
-                logDiscovery("It was impossible to permit other devices to join. Is Zigbee2Mqtt bridge running?")
+                logDiscovery(
+                    "It was impossible to permit other devices to join. Is Zigbee2Mqtt bridge running?"
+                )
             }
         } else {
-            logDiscovery("Discovery on startup is disabled! Press \"Start discovery\" button to pair new devices")
+            logDiscovery(
+                "Discovery on startup is disabled! Press \"Start discovery\" button to pair new devices"
+            )
         }
     }
 
@@ -107,7 +143,7 @@ class Zigbee2MqttAdapter(
         }
 
         while (!permitJoin && permitJoinJob.isActive) {
-            //waiting for Zigbee2Mqtt bridge for allowing other devices to join
+            // waiting for Zigbee2Mqtt bridge for allowing other devices to join
         }
 
         if (permitJoinJob.isActive) {
@@ -115,8 +151,7 @@ class Zigbee2MqttAdapter(
         }
     }
 
-    override fun executePendingChanges() {
-    }
+    override fun executePendingChanges() {}
 
     override fun stop() {
         mqttBroker.removeMqttListener(this)
@@ -125,7 +160,6 @@ class Zigbee2MqttAdapter(
     override fun start() {
         mqttBroker.addMqttListener(this)
     }
-
 
     override fun onPublish(clientID: String, topicName: String, msgAsString: String) {
         if (topicName.startsWith("zigbee2mqtt")) {
@@ -136,9 +170,8 @@ class Zigbee2MqttAdapter(
 
             val nowMillis = Calendar.getInstance().timeInMillis
 
-            ports
-                .values
-                .filter {  it.readTopic == topicName }
+            ports.values
+                .filter { it.readTopic == topicName }
                 .forEach {
                     val updatePayload = gson.fromJson(msgAsString, UpdatePayload::class.java)
                     val prevValue = it.read().asDecimal()
@@ -147,8 +180,7 @@ class Zigbee2MqttAdapter(
                     if (prevValue != newValue) {
                         broadcastPortUpdate(PortUpdateType.ValueChange, it)
                     }
-                    it.lastSeenTimestamp = nowMillis
-                    broadcastPortUpdate(PortUpdateType.LastSeenChange, it)
+                    it.updateLastSeenTimeStamp(nowMillis)
                 }
         }
     }
@@ -171,19 +203,41 @@ class Zigbee2MqttAdapter(
             val sleepInterval = if (isBatteryPowered) 25 * 3600 * 1000L else 3600 * 1000L
 
             val now = Calendar.getInstance()
-            val newPorts = interview
-                .definition
-                .exposes
-                .filter { it.access == 1 }
-                .map {
-                    when (it.name) {
-                        "battery" -> batteryPortDiscovered(interview.ieee_address, sleepInterval, now.timeInMillis)
-                        "temperature" -> temperaturePortDiscovered(it, interview.ieee_address, sleepInterval, now.timeInMillis)
-                        "humidity" -> humidityPortDiscovered(interview.ieee_address, sleepInterval, now.timeInMillis)
-                        "action" -> binaryInputPortDiscovered(it, interview.ieee_address, sleepInterval, now.timeInMillis)
-                        else -> listOf()
+            val newPorts =
+                interview.definition.exposes
+                    .filter { it.access == 1 }
+                    .map {
+                        when (it.name) {
+                            "battery" ->
+                                batteryPortDiscovered(
+                                    interview.ieee_address,
+                                    sleepInterval,
+                                    now.timeInMillis
+                                )
+                            "temperature" ->
+                                temperaturePortDiscovered(
+                                    it,
+                                    interview.ieee_address,
+                                    sleepInterval,
+                                    now.timeInMillis
+                                )
+                            "humidity" ->
+                                humidityPortDiscovered(
+                                    interview.ieee_address,
+                                    sleepInterval,
+                                    now.timeInMillis
+                                )
+                            "action" ->
+                                binaryInputPortDiscovered(
+                                    it,
+                                    interview.ieee_address,
+                                    sleepInterval,
+                                    now.timeInMillis
+                                )
+                            else -> listOf()
+                        }
                     }
-                }.flatten()
+                    .flatten()
 
             addPotentialNewPorts(newPorts)
         }
@@ -201,7 +255,16 @@ class Zigbee2MqttAdapter(
 
         return exposition.values.map {
             val portId = idBuilder.buildPortId(ieeeAddress, 0.toString(), it)
-            ZigbeeActionInputPort(portId, "zigbee2mqtt/$ieeeAddress", it, sleepInterval, nowMillis)
+            ZigbeeActionInputPort(
+                owningPluginId,
+                adapterId,
+                portId,
+                eventBus,
+                sleepInterval,
+                nowMillis,
+                "zigbee2mqtt/$ieeeAddress",
+                it
+            )
         }
     }
 
@@ -211,7 +274,17 @@ class Zigbee2MqttAdapter(
         nowMillis: Long
     ): List<ZigbeeHumidityInputPort> {
         val portId = idBuilder.buildPortId(ieeeAddress, 0.toString(), "H")
-        return listOf(ZigbeeHumidityInputPort(portId, "zigbee2mqtt/$ieeeAddress", sleepInterval, nowMillis))
+        return listOf(
+            ZigbeeHumidityInputPort(
+                owningPluginId,
+                adapterId,
+                portId,
+                eventBus,
+                nowMillis,
+                sleepInterval,
+                "zigbee2mqtt/$ieeeAddress"
+            )
+        )
     }
 
     private fun temperaturePortDiscovered(
@@ -221,7 +294,18 @@ class Zigbee2MqttAdapter(
         nowMillis: Long
     ): List<ZigbeeTemperatureInputPort> {
         val portId = idBuilder.buildPortId(ieeeAddress, 0.toString(), "T")
-        return listOf(ZigbeeTemperatureInputPort(portId, "zigbee2mqtt/$ieeeAddress", exposition.unit, sleepInterval, nowMillis))
+        return listOf(
+            ZigbeeTemperatureInputPort(
+                owningPluginId,
+                adapterId,
+                portId,
+                eventBus,
+                sleepInterval,
+                nowMillis,
+                "zigbee2mqtt/$ieeeAddress",
+                exposition.unit,
+            )
+        )
     }
 
     private fun batteryPortDiscovered(
@@ -230,14 +314,22 @@ class Zigbee2MqttAdapter(
         nowMillis: Long
     ): List<ZigbeeBatteryInputPort> {
         val portId = idBuilder.buildPortId(ieeeAddress, 0.toString(), "B")
-        return listOf(ZigbeeBatteryInputPort(portId, "zigbee2mqtt/$ieeeAddress", sleepInterval, nowMillis))
+        return listOf(
+            ZigbeeBatteryInputPort(
+                owningPluginId,
+                adapterId,
+                portId,
+                eventBus,
+                sleepInterval,
+                nowMillis,
+                "zigbee2mqtt/$ieeeAddress",
+            )
+        )
     }
 
-    override fun onDisconnected(clientID: String) {
-    }
+    override fun onDisconnected(clientID: String) {}
 
-    override suspend fun onConnected(address: InetAddress) = withContext(Dispatchers.IO) {
-    }
+    override suspend fun onConnected(address: InetAddress) = withContext(Dispatchers.IO) {}
 }
 
 /*

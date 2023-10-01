@@ -15,16 +15,33 @@
 
 package eu.automateeverything.zigbee2mqttplugin.ports
 
+import eu.automateeverything.domain.events.EventBus
 import eu.automateeverything.domain.hardware.Humidity
+import eu.automateeverything.domain.hardware.PortCapabilities
 import eu.automateeverything.zigbee2mqttplugin.data.UpdatePayload
 import java.math.BigDecimal
 
 class ZigbeeHumidityInputPort(
-    id:String,
-    readTopic: String,
+    factoryId: String,
+    adapterId: String,
+    portId: String,
+    eventBus: EventBus,
     sleepInterval: Long,
-    lastSeenTimestamp: Long
-) : ZigbeeInputPort<Humidity>(id, Humidity::class.java, readTopic, Humidity(BigDecimal.ZERO), sleepInterval, lastSeenTimestamp) {
+    lastSeenTimestamp: Long,
+    readTopic: String
+) :
+    ZigbeePort<Humidity>(
+        factoryId,
+        adapterId,
+        portId,
+        eventBus,
+        Humidity::class.java,
+        PortCapabilities(canRead = true, canWrite = false),
+        sleepInterval,
+        lastSeenTimestamp,
+        readTopic,
+        Humidity(BigDecimal.ZERO)
+    ) {
 
     override fun tryUpdateInternal(payload: UpdatePayload): Boolean {
         if (payload.humidity != null) {

@@ -17,17 +17,34 @@ package eu.automateeverything.zigbee2mqttplugin.ports
 
 import eu.automateeverything.domain.automation.blocks.CelsiusToKelvinValueConverter
 import eu.automateeverything.domain.automation.blocks.FahrenheitToKelvinValueConverter
+import eu.automateeverything.domain.events.EventBus
+import eu.automateeverything.domain.hardware.PortCapabilities
 import eu.automateeverything.domain.hardware.Temperature
 import eu.automateeverything.zigbee2mqttplugin.data.UpdatePayload
 import java.math.BigDecimal
 
 class ZigbeeTemperatureInputPort(
-    id: String,
-    readTopic: String,
-    unit: String,
+    factoryId: String,
+    adapterId: String,
+    portId: String,
+    eventBus: EventBus,
     sleepInterval: Long,
-    lastSeenTimestamp: Long
-) : ZigbeeInputPort<Temperature>(id, Temperature::class.java, readTopic, Temperature(BigDecimal.ZERO), sleepInterval, lastSeenTimestamp) {
+    lastSeenTimestamp: Long,
+    readTopic: String,
+    unit: String
+) :
+    ZigbeePort<Temperature>(
+        factoryId,
+        adapterId,
+        portId,
+        eventBus,
+        Temperature::class.java,
+        PortCapabilities(canRead = true, canWrite = false),
+        sleepInterval,
+        lastSeenTimestamp,
+        readTopic,
+        Temperature(BigDecimal.ZERO)
+    ) {
 
     private val isCelsius = unit.lowercase().contains("c")
     private val isFahrenheit = unit.lowercase().contains("f")
@@ -36,13 +53,14 @@ class ZigbeeTemperatureInputPort(
 
     override fun tryUpdateInternal(payload: UpdatePayload): Boolean {
         if (payload.temperature != null) {
-            val valueInK = if (isCelsius) {
-                celsiusToKConverter.convert(BigDecimal(payload.temperature))
-            } else if (isFahrenheit) {
-                fahrenheitToKConverter.convert(BigDecimal(payload.temperature))
-            } else {
-                BigDecimal(payload.temperature)
-            }
+            val valueInK =
+                if (isCelsius) {
+                    celsiusToKConverter.convert(BigDecimal(payload.temperature))
+                } else if (isFahrenheit) {
+                    fahrenheitToKConverter.convert(BigDecimal(payload.temperature))
+                } else {
+                    BigDecimal(payload.temperature)
+                }
             value = Temperature(valueInK)
             return true
         }

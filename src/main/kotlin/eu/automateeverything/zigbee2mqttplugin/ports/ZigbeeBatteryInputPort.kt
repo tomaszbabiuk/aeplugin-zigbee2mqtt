@@ -15,17 +15,33 @@
 
 package eu.automateeverything.zigbee2mqttplugin.ports
 
+import eu.automateeverything.domain.events.EventBus
 import eu.automateeverything.domain.hardware.BatteryCharge
+import eu.automateeverything.domain.hardware.PortCapabilities
 import eu.automateeverything.zigbee2mqttplugin.data.UpdatePayload
 import java.math.BigDecimal
 
 class ZigbeeBatteryInputPort(
-    id:String,
-    readTopic: String,
+    factoryId: String,
+    adapterId: String,
+    portId: String,
+    eventBus: EventBus,
     sleepInterval: Long,
-    lastSeenTimestamp: Long
-) : ZigbeeInputPort<BatteryCharge>(id, BatteryCharge::class.java, readTopic,
-    BatteryCharge(BigDecimal.ZERO), sleepInterval, lastSeenTimestamp) {
+    lastSeenTimestamp: Long,
+    readTopic: String
+) :
+    ZigbeePort<BatteryCharge>(
+        factoryId,
+        adapterId,
+        portId,
+        eventBus,
+        BatteryCharge::class.java,
+        PortCapabilities(canRead = true, canWrite = false),
+        sleepInterval,
+        lastSeenTimestamp,
+        readTopic,
+        BatteryCharge(BigDecimal.ZERO)
+    ) {
 
     override fun tryUpdateInternal(payload: UpdatePayload): Boolean {
         if (payload.battery != null) {
