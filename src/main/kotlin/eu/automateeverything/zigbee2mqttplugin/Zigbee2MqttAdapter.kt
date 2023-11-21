@@ -16,7 +16,7 @@
 package eu.automateeverything.zigbee2mqttplugin
 
 import com.google.gson.Gson
-import eu.automateeverything.data.Repository
+import eu.automateeverything.data.DataRepository
 import eu.automateeverything.data.hardware.PortDto
 import eu.automateeverything.domain.events.EventBus
 import eu.automateeverything.domain.events.PortUpdateType
@@ -33,7 +33,7 @@ class Zigbee2MqttAdapter(
     owningPluginId: String,
     private val mqttBroker: MqttBrokerService,
     eventBus: EventBus,
-    repository: Repository,
+    dataRepository: DataRepository,
 ) : HardwareAdapterBase<ZigbeePort<*>>(owningPluginId, "0", eventBus), MqttListener {
 
     private var permitJoin: Boolean = false
@@ -41,7 +41,7 @@ class Zigbee2MqttAdapter(
     private val gson = Gson()
 
     init {
-        repository
+        dataRepository
             .getAllPorts()
             .filter { it.factoryId == owningPluginId && it.adapterId == adapterId }
             .forEach { ports[it.id] = convertPortDtoToZigbeePort(it) }

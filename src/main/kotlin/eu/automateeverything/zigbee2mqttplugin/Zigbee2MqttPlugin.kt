@@ -15,7 +15,7 @@
 
 package eu.automateeverything.zigbee2mqttplugin
 
-import eu.automateeverything.data.Repository
+import eu.automateeverything.data.DataRepository
 import eu.automateeverything.data.localization.Resource
 import eu.automateeverything.data.plugins.PluginCategory
 import eu.automateeverything.domain.events.EventBus
@@ -29,23 +29,21 @@ class Zigbee2MqttPlugin(
     wrapper: PluginWrapper,
     private val mqttBroker: MqttBrokerService,
     private val eventBus: EventBus,
-    private val repository: Repository
-) : HardwarePlugin(wrapper), PluginMetadata{
+    private val dataRepository: DataRepository
+) : HardwarePlugin(wrapper), PluginMetadata {
 
-    override fun start() {
-    }
+    override fun start() {}
 
-    override fun stop() {
-    }
+    override fun stop() {}
 
     override fun createAdapters(): List<HardwareAdapter<*>> {
         val result = ArrayList<HardwareAdapter<*>>()
-        val adapter = Zigbee2MqttAdapter(pluginId, mqttBroker, eventBus, repository)
+        val adapter = Zigbee2MqttAdapter(pluginId, mqttBroker, eventBus, dataRepository)
         result.add(adapter)
         return result
     }
 
-    override val name: Resource =  R.plugin_name
+    override val name: Resource = R.plugin_name
     override val description: Resource = R.plugin_description
     override val category: PluginCategory = PluginCategory.Hardware
 }
